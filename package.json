@@ -1,0 +1,29 @@
+{
+  "name": "fintrack",
+  "version": "0.0.0",
+  "private": true,
+  "description": "FinTrack - personal finance tracker (React + Vite client, Express + Prisma server)",
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  },
+  "scripts": {
+    "dev": "concurrently -n client,server -c cyan,magenta \"npm:dev:client\" \"npm:dev:server\"",
+    "dev:client": "npm run dev --workspace client",
+    "dev:server": "npm run dev --workspace server",
+    "build": "npm run build --workspace client",
+    "start": "npm run start --workspace server",
+    "test": "npm run test --workspace server",
+    "lint": "npm run lint --workspace client && npm run lint --workspace server",
+    "lint:fix": "npm run lint:fix --workspace client && npm run lint:fix --workspace server",
+    "format": "npm run format --workspace client && npm run format --workspace server",
+    "format:check": "npm run format:check --workspace client && npm run format:check --workspace server"
+  }
+}
