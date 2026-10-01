@@ -33,9 +33,10 @@ export default [
         { allowConstantExport: true },
       ],
       'react/prop-types': 'off',
-      quotes: ['error', 'single', { avoidEscape: true }],
-      semi: ['error', 'always'],
-      indent: ['error', 2, { SwitchCase: 1 }],
+      // Formatting (2-space indent, single quotes, semicolons) is owned by
+      // Prettier - see .prettierrc.json. eslint-config-prettier disables the
+      // stylistic ESLint rules so the two tools never disagree, so they are
+      // intentionally not re-enabled here.
       'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
