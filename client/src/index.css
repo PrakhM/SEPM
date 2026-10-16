@@ -41,6 +41,7 @@
     --c-primary-light: #0d9488; /* primary-600, hover  */
     --c-primary-dark: #115e59; /* primary-800, active */
     --c-primary-subtle: #f0fdfa; /* primary-50   */
+    --c-primary-on-subtle: #0f766e; /* primary-700, 5.25:1 on subtle */
     --c-primary-contrast: #ffffff;
 
     /* Status - saturated for daytime legibility. */
@@ -97,6 +98,10 @@
     --c-primary-light: #2dd4bf; /* primary-400, hover  */
     --c-primary-dark: #0d9488; /* primary-600, active */
     --c-primary-subtle: #134e4a; /* primary-900           */
+    /* Text/icon drawn ON `subtle`. The base --c-primary is only 3.81:1 on the
+       dark subtle fill, below WCAG AA 4.5:1, so this steps up to primary-300
+       (6.41:1) rather than reusing the accent. */
+    --c-primary-on-subtle: #5eead4; /* primary-300          */
     --c-primary-contrast: #0f172a;
 
     --c-success: #10b981; /* success-500 */

@@ -43,6 +43,10 @@ export default {
           light: themed('--c-primary-light'), // hover
           dark: themed('--c-primary-dark'), // active
           subtle: themed('--c-primary-subtle'), // tinted backgrounds
+          // NOTE: quoted kebab-case is REQUIRED here. Tailwind v4's @config
+          // compat layer does not kebab-case camelCase colour keys - a key
+          // `onSubtle` would only ever match `text-primary-onSubtle`.
+          'on-subtle': themed('--c-primary-on-subtle'), // text/icon ON `subtle`
           contrast: themed('--c-primary-contrast'), // text on primary
         },
 
