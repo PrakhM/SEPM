@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 
 import AppShell from './components/layout/AppShell.jsx';
 import BudgetsPage from './pages/BudgetsPage.jsx';
+import ComponentDemoPage from './pages/ComponentDemoPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import DesignSystemPage from './pages/DesignSystemPage.jsx';
 import GoalsPage from './pages/GoalsPage.jsx';
@@ -18,9 +19,10 @@ import TransactionsPage from './pages/TransactionsPage.jsx';
  * nests every authenticated page underneath it, so a page only has to supply
  * its own content.
  *
- * The design-system harness sits outside the shell deliberately - it is a
- * token preview, not an application page, and should not inherit the app
- * chrome. Delete it once real pages cover the tokens.
+ * The design-system and component review harnesses sit outside the shell
+ * deliberately - they are previews, not application pages, and should not
+ * inherit the app chrome. Delete them once real pages cover the tokens and the
+ * primitives.
  *
  * /login is also outside the shell, and must stay routed: AppShell redirects
  * unauthenticated visitors there, so an unrouted /login would fall through to
@@ -42,6 +44,7 @@ export default function App() {
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/design-system" element={<DesignSystemPage />} />
+      <Route path="/components" element={<ComponentDemoPage />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
