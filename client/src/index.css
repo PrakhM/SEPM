@@ -6,6 +6,80 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ---------------------------------------------------------------------------
+ * Motion tokens
+ *
+ * Entrance animations for the overlay primitives (Modal, Toast). Declared as
+ * `@theme` entries so each becomes an `animate-*` utility - `animate-modal-
+ * panel-in` etc. - and, because the selectors are plain @keyframes, they work
+ * for any element rather than a single component class.
+ *
+ * Every component that uses one of these also pairs it with
+ * `motion-reduce:animate-none`, so a user with reduced-motion enabled gets an
+ * instant appearance instead of a slide. `animate-pulse` (Skeleton) and
+ * `animate-spin` (Button spinner) are Tailwind built-ins.
+ * ------------------------------------------------------------------------ */
+@theme {
+  --animate-modal-backdrop-in: fade-in 180ms ease-out;
+  --animate-modal-panel-in: panel-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-toast-in-bottom: toast-in-bottom 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-toast-in-right: toast-in-right 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* Counts the toast's remaining life down its bottom edge. Duration is set
+     inline per toast so it matches that toast's own dismiss timer. */
+  --animate-toast-life: toast-life linear forwards;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes toast-in-bottom {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes toast-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes toast-life {
+    from {
+      width: 100%;
+    }
+    to {
+      width: 0%;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
  * Semantic tokens
  *
  * IMPORTANT - why these are literal hex and not `var(--color-*)` references:
@@ -49,24 +123,28 @@
     --c-success-light: #10b981; /* success-500, hover  */
     --c-success-dark: #047857; /* success-700, active */
     --c-success-subtle: #ecfdf5; /* success-50            */
+    --c-success-on-subtle: #047857; /* success-700, 5.21:1 on success-50 */
     --c-success-contrast: #ffffff;
 
     --c-danger: #e11d48; /* danger-600, rose-600   */
     --c-danger-light: #f43f5e; /* danger-500, hover  */
     --c-danger-dark: #be123c; /* danger-700, active */
     --c-danger-subtle: #fff1f2; /* danger-50           */
+    --c-danger-on-subtle: #be123c; /* danger-700, 5.72:1 on danger-50 */
     --c-danger-contrast: #ffffff;
 
     --c-warning: #f59e0b; /* warning-500, amber-500 */
     --c-warning-light: #fbbf24; /* warning-400, hover  */
     --c-warning-dark: #d97706; /* warning-600, active */
     --c-warning-subtle: #fffbeb; /* warning-50           */
+    --c-warning-on-subtle: #b45309; /* warning-700, 4.84:1 on warning-50 */
     --c-warning-contrast: #78350f;
 
     --c-info: #818cf8; /* info-400, indigo-400    */
     --c-info-light: #a5b4fc; /* info-300, hover   */
     --c-info-dark: #6366f1; /* info-500, active  */
     --c-info-subtle: #eef2ff; /* info-50            */
+    --c-info-on-subtle: #4338ca; /* info-700, 7.07:1 on info-50     */
     --c-info-contrast: #ffffff;
 
     /* Type - mirrors fontFamily.sans in tailwind.config.js. */
@@ -108,24 +186,31 @@
     --c-success-light: #34d399; /* success-400, hover  */
     --c-success-dark: #059669; /* success-600, active */
     --c-success-subtle: #064e3b; /* success-900           */
+    /* Base --c-success is only 3.83:1 on the dark subtle fill, so this steps
+       up to success-300 (6.38:1) for badges and other text drawn on it. */
+    --c-success-on-subtle: #6ee7b7; /* success-300          */
     --c-success-contrast: #0f172a;
 
     --c-danger: #f43f5e; /* danger-500 */
     --c-danger-light: #fb7185; /* danger-400, hover  */
     --c-danger-dark: #e11d48; /* danger-600, active */
     --c-danger-subtle: #881337; /* danger-900           */
+    /* Same story, worse: base --c-danger is 2.61:1 on the dark subtle fill. */
+    --c-danger-on-subtle: #fda4af; /* danger-300          */
     --c-danger-contrast: #0f172a;
 
     --c-warning: #fbbf24; /* warning-400 */
     --c-warning-light: #fcd34d; /* warning-300, hover  */
     --c-warning-dark: #f59e0b; /* warning-500, active */
     --c-warning-subtle: #78350f; /* warning-900           */
+    --c-warning-on-subtle: #fcd34d; /* warning-300          */
     --c-warning-contrast: #0f172a;
 
     --c-info: #a5b4fc; /* info-300 */
     --c-info-light: #c7d2fe; /* info-200, hover   */
     --c-info-dark: #818cf8; /* info-400, active  */
     --c-info-subtle: #312e81; /* info-900           */
+    --c-info-on-subtle: #a5b4fc; /* info-300          */
     --c-info-contrast: #0f172a;
   }
 
