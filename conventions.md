@@ -7,6 +7,8 @@ FinTrack/
 ├── client/
 │   └── src/
 │       ├── components/<feature>/     # e.g. components/budgets/
+│       ├── components/common/        # theme-aware primitives, no feature knowledge
+│       ├── components/layout/        # app chrome (AppShell, Sidebar, TopBar)
 │       ├── pages/
 │       ├── store/                    # Zustand stores
 │       ├── services/                 # Axios API wrappers, one per entity
@@ -31,6 +33,16 @@ One feature = one file per layer, same base name, e.g. for "budgets":
 `budgetValidator.js`, `BudgetCard.jsx`, `budgetService.js` (frontend API
 wrapper — lives in `client/src/services/`, same name as backend counterpart
 but different folder, this is fine, they're not the same file).
+
+`components/common/` is the shared primitive layer (Button, Input, Select,
+Card, Modal, Badge, Toast, EmptyState, Skeleton). A file there must not import
+from `store/`, `services/` or any feature folder — primitives know about design
+tokens, not about transactions. Feature folders build on top of them and may
+know about anything.
+
+Review surfaces (`pages/DesignSystemPage.jsx`, `pages/ComponentDemoPage.jsx`)
+are temporary and live outside `AppShell`; delete each one once real pages
+cover what it was previewing.
 
 ## File naming
 

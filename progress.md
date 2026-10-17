@@ -17,7 +17,7 @@ Mid-sem scope = Increments 1–4 below, at minimum. Everything past that is
 
 | # | Increment | Status | Notes |
 |---|---|---|---|
-| 1 | Foundation (auth, skeleton, DB, deploy pipeline) | In Progress | Design tokens + AppShell layout route done; auth endpoints, DB and deploy pipeline still open |
+| 1 | Foundation (auth, skeleton, DB, deploy pipeline) | In Progress | Design tokens, AppShell layout route and the `components/common/` primitive set done; auth endpoints, DB and deploy pipeline still open |
 | 2 | Transactions (CRUD, idempotency) | Not Started | |
 | 3 | Budgets (utilization, concurrency-safe update) | Not Started | |
 | 4 | Savings Goals | Not Started | |
@@ -56,6 +56,29 @@ Status values: `Not Started`, `In Progress`, `Done`, `Blocked` (note why).
       Budgets, Goals, Subscriptions, Rules, Reports)
 - [ ] Replace `DesignSystemPage.jsx` once real pages cover the tokens
 - [ ] No component tests yet — shell has only lint + build coverage
+
+### Common primitives (`components/common/`)
+- [x] `Button` — primary/secondary/ghost/danger × sm/md/lg, loading state that
+      holds the label's width, disabled state (dimmed, `cursor-not-allowed`,
+      hover gated on `enabled:`), icon slots, `fullWidth`
+- [x] `Input` / `Select` — shared `Field` shell (label above, helper or error
+      below, never both), one height scale across Button/Input/Select,
+      `aria-invalid` + `aria-describedby` wiring
+- [x] `Card` — optional header slot (title + action), `description`, `footer`,
+      `padded={false}` for flush tables, `raised`
+- [x] `Modal` — portal, focus trap, Escape + backdrop close, scroll lock,
+      sm/md/lg/xl, `dismissible={false}` for in-flight destructive confirms
+- [x] `Badge` — six semantic tones × subtle/outline × sm/md, dot + icon slots
+- [x] `Toast` + `ToastViewport` + `store/toastStore.js` — bottom on mobile,
+      top-right from `sm` up, 4s auto-dismiss, pause on hover/focus, capped at
+      four, `toast.success/error/info(title, { description, duration })`
+- [x] `EmptyState` — icon + instruction + optional CTA, `compact` variant
+- [x] `Skeleton` / `SkeletonText` — pulsing blocks sized to the content they
+      stand in for
+- [x] `ComponentDemoPage.jsx` at `/components` — every variant of every
+      component on one review page, outside the app shell
+- [ ] No component tests yet — primitives have lint + build coverage only, and
+      should get Vitest + Testing Library tests once the test setup lands
 
 ### Transactions
 - [ ] Prisma model
@@ -165,6 +188,63 @@ feature descoped, a different library used, a schema field renamed.)
   labels. It now steps up to primary-300 (6.41:1); light mode is unchanged at
   5.25:1. The active nav item is also `font-semibold` (inactive stays
   `font-medium`) so the active page stays identifiable without colour.
+- 2026-10-17 — Added `--c-{success,danger,warning,info}-on-subtle`, matching
+  the `--c-primary-on-subtle` pattern from 2026-10-16, because badges and
+  status text sit on those subtle fills. The base accents fail the same check
+  the primary one did: in dark mode `--c-danger` is 2.61:1 on `danger-subtle`
+  and `--c-success` is 3.83:1 on `success-subtle`. Dark mode now steps up to
+  the 300 step (danger 5.06:1, success 6.38:1); light mode uses the 700 step
+  (danger 5.72:1, warning 4.84:1, success 5.21:1, info 7.07:1).
+- 2026-10-17 — `Badge` has no solid (filled) variant. It was specified, but a
+  solid badge needs white-on-accent, and `--c-*-contrast` does not clear WCAG
+  AA for every tone: white on `success-600` is 3.77:1 and white on `info-400`
+  is 2.98:1. Rather than special-case two tones or ship a variant below the
+  contrast the rest of the app holds to, the component ships `subtle` and
+  `outline` only. If a solid badge is ever needed it has to go through the
+  palette first, in both modes.
+- 2026-10-17 — `Badge` outline borders use Tailwind's `/40` opacity modifier on
+  a themed colour (`border-success/40`), which resolves to a `color-mix()`
+  against the CSS variable. Verified in the built CSS, because an opacity
+  modifier on a `var()` colour is exactly the kind of thing that fails silently
+  (see the 2026-10-16 note on kebab-case colour keys).
+- 2026-10-17 — Button hover styles are written `enabled:hover:*` rather than
+  `hover:*`. `:hover` alone still matches a disabled button, so without the
+  `enabled:` gate a disabled primary button still changes colour on hover,
+  which reads as broken rather than disabled.
+- 2026-10-17 — A loading `Button` sets `disabled` (that is what actually stops
+  a double submit) but does not take the disabled *appearance*, and shows
+  `cursor-progress` instead of `cursor-not-allowed`. Dimming means "you cannot
+  do this right now"; a spinner means "this is happening right now" — the two
+  states should not look the same.
+- 2026-10-17 — Modal and Toast focus trapping is hand-rolled in `Modal.jsx`
+  (query focusable nodes, cycle first/last on Tab, restore focus on close)
+  rather than pulling in a focus-trap dependency. It is ~30 lines, adding no
+  bundle weight, and principle 6's "check it is free" is a weaker reason to add
+  a dependency than "do we need it". Revisit only if the trap has to handle
+  portals, shadow DOM or nested dialogs.
+- 2026-10-17 — Toast state lives in `client/src/store/toastStore.js`, not in
+  the component, so any module can raise a notification without a callback
+  threaded down the tree. `ToastViewport` is mounted in `main.jsx` above the
+  router for the same reason. Dismissal timers are owned by each `Toast` rather
+  than the store, so hovering or tabbing into a toast pauses it.
+- 2026-10-17 — Toast stack is uniform width and its order flips per
+  breakpoint (`flex-col sm:flex-col-reverse`), both found by driving the real
+  page in Chrome rather than by reading the code. The first cut used
+  `sm:items-end`, which let each toast shrink to its own text and left a ragged
+  left edge as soon as two messages differed in length; the column now
+  stretches. The same cut used one `flex-col-reverse` for both layouts, which
+  put the *oldest* toast against the bottom edge on mobile — backwards for a
+  bottom-anchored stack. Mobile is now newest-at-the-bottom edge, desktop
+  newest-at-the-top-right corner, which is what the two anchors each want.
+- 2026-10-17 — Verified in Chrome (CDP, real clicks and key events) rather than
+  asserted from source: Button loading drift is 0.00px against its idle twin
+  across all three variants; Modal focus stays inside across the full tab cycle,
+  Shift+Tab wraps to the last stop, Escape closes, and focus returns to the
+  triggering button; `dismissible={false}` survives both Escape and a backdrop
+  click; 3 and 4 toasts fit on 390x844, 375x667 and 360x640 without overflow;
+  the toast queue caps at four. Note for later: Tailwind's `transition-colors`
+  includes `outline-color`, so the focus ring fades in over 200ms — sample
+  focus styles after the transition, not immediately after focusing.
 
 ## Open questions / decisions still needed
 

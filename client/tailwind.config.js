@@ -5,12 +5,13 @@
  * for the raw palette: every hex value below is literal and final.
  *
  * Semantic tokens (bg, surface, border, text, and the DEFAULT/light/dark/
- * subtle/contrast keys on each accent) are wired to CSS custom properties so
- * light and dark mode can swap values with no duplicated utilities. The raw
- * scales stay static here as literals; src/index.css declares which value
- * each mode selects, and repeats those hexes because Tailwind v4 inlines
- * config colours instead of emitting `--color-*` properties. Keep the two in
- * sync — src/index.css carries a comment marking each one's scale step.
+ * subtle/on-subtle/contrast keys on each accent) are wired to CSS custom
+ * properties so light and dark mode can swap values with no duplicated
+ * utilities. The raw scales stay static here as literals; src/index.css
+ * declares which value each mode selects, and repeats those hexes because
+ * Tailwind v4 inlines config colours instead of emitting `--color-*`
+ * properties. Keep the two in sync — src/index.css carries a comment marking
+ * each one's scale step.
  */
 
 /** Wrap a theme CSS variable so a semantic token follows the active mode. */
@@ -103,6 +104,7 @@ export default {
           light: themed('--c-success-light'),
           dark: themed('--c-success-dark'),
           subtle: themed('--c-success-subtle'),
+          'on-subtle': themed('--c-success-on-subtle'),
           contrast: themed('--c-success-contrast'),
         },
 
@@ -120,6 +122,7 @@ export default {
           light: themed('--c-danger-light'),
           dark: themed('--c-danger-dark'),
           subtle: themed('--c-danger-subtle'),
+          'on-subtle': themed('--c-danger-on-subtle'),
           contrast: themed('--c-danger-contrast'),
         },
 
@@ -137,6 +140,7 @@ export default {
           light: themed('--c-warning-light'),
           dark: themed('--c-warning-dark'),
           subtle: themed('--c-warning-subtle'),
+          'on-subtle': themed('--c-warning-on-subtle'),
           contrast: themed('--c-warning-contrast'),
         },
 
@@ -158,6 +162,7 @@ export default {
           light: themed('--c-info-light'),
           dark: themed('--c-info-dark'),
           subtle: themed('--c-info-subtle'),
+          'on-subtle': themed('--c-info-on-subtle'),
           contrast: themed('--c-info-contrast'),
         },
       },
