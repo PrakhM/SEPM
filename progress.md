@@ -17,7 +17,7 @@ Mid-sem scope = Increments 1–4 below, at minimum. Everything past that is
 
 | # | Increment | Status | Notes |
 |---|---|---|---|
-| 1 | Foundation (auth, skeleton, DB, deploy pipeline) | In Progress | Design tokens, AppShell layout route and the `components/common/` primitive set done; auth endpoints, DB and deploy pipeline still open |
+| 1 | Foundation (auth, skeleton, DB, deploy pipeline) | In Progress | Design tokens, AppShell layout route and the `components/common/` primitive set done; Prisma schema + initial migration applied to Neon; auth endpoints, `lib/prismaClient.js` and deploy pipeline still open |
 | 2 | Transactions (CRUD, idempotency) | Not Started | |
 | 3 | Budgets (utilization, concurrency-safe update) | Not Started | |
 | 4 | Savings Goals | Not Started | |
@@ -34,6 +34,24 @@ Mid-sem scope = Increments 1–4 below, at minimum. Everything past that is
 Status values: `Not Started`, `In Progress`, `Done`, `Blocked` (note why).
 
 ## Feature-level detail (update as work happens)
+
+### Database (Prisma schema + migration)
+- [x] `server/prisma/schema.prisma` — all 9 models from `database-schema.md`
+      (`User`, `Category`, `Transaction`, `Budget`, `SavingsGoal`,
+      `Subscription`, `FinancialRule`, `IdempotencyKey`, `Activity`),
+      UUID PKs via `uuid()` default
+- [x] Neon datasource: pooled `DATABASE_URL` at runtime, `DIRECT_URL` for
+      migrations only, per `conventions.md`
+- [x] Money stored as `Int` paise — no float/decimal column anywhere in the
+      schema
+- [x] Constraints: `User.email` unique; `Budget (userId, categoryId, period)`
+      unique; `IdempotencyKey (userId, key)` unique; `Transaction` indexes on
+      `(userId, date)` and `(userId, categoryId)`; 11 FKs
+- [x] Initial migration `20261018112439_init` applied to Neon (9 tables
+      verified live)
+- [ ] `src/lib/prismaClient.js` — shared Prisma instance for services
+- [ ] Seed script for demo data
+- [ ] `lib/errors.js` typed errors + `middleware/errorHandler.js`
 
 ### Auth
 - [ ] Register endpoint
@@ -158,8 +176,22 @@ Status values: `Not Started`, `In Progress`, `Done`, `Blocked` (note why).
 `architecture.md` / `database-schema.md`, with date and reason — e.g. a
 feature descoped, a different library used, a schema field renamed.)
 
-- None yet.
-
+- 2026-10-18 — Prisma pinned to **6.19.3**, not the latest 7.x/8.x. Prisma 7
+  removed `url` and `directUrl` from the `datasource` block entirely (they move
+  to `prisma.config.ts`, and the runtime URL moves into the `PrismaClient`
+  constructor via a driver adapter). That breaks `conventions.md`'s Neon
+  pattern, which keeps both strings in the schema. v6 is the last major that
+  supports `DATABASE_URL` + `DIRECT_URL` as documented. Also note `npm` tags
+  `prisma`'s `latest` as an 8.0.0-rc, so an unpinned install picks up a release
+  candidate — pin the version explicitly.
+- 2026-10-18 — Three schema details not pinned by `database-schema.md`, added
+  as conventional defaults and flagged for review: `Budget.spent` and
+  `SavingsGoal.savedAmount` default to `0`; `Activity.metadata` is nullable
+  ("optional extra context" in the doc, but not marked nullable); and every
+  relation carries an explicit `onDelete` — `CASCADE` on user-owned rows,
+  `SET NULL` for `Transaction.categoryId` so deleting a category lands the
+  transaction in "Uncategorized" rather than destroying it. The first migration
+  is already applied, so changing any of these needs a new migration.
 - 2026-10-16 — Mobile navigation is a **slide-over drawer** behind a hamburger,
   not a bottom tab bar. The prompt allowed either; the drawer was chosen
   because seven nav items plus a user section do not fit in a 375px bottom bar.
