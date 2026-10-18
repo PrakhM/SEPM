@@ -17,7 +17,7 @@ Mid-sem scope = Increments 1–4 below, at minimum. Everything past that is
 
 | # | Increment | Status | Notes |
 |---|---|---|---|
-| 1 | Foundation (auth, skeleton, DB, deploy pipeline) | In Progress | Design tokens, AppShell layout route and the `components/common/` primitive set done; Prisma schema + initial migration applied to Neon; auth endpoints, `lib/prismaClient.js` and deploy pipeline still open |
+| 1 | Foundation (auth, skeleton, DB, deploy pipeline) | In Progress | Design tokens, AppShell layout route, `components/common/` primitive set, Prisma schema + migration, and the backend auth flow (register/login/me with tests) are done; frontend login, rate limiting, `TEST_DATABASE_URL` and deploy pipeline still open |
 | 2 | Transactions (CRUD, idempotency) | Not Started | |
 | 3 | Budgets (utilization, concurrency-safe update) | Not Started | |
 | 4 | Savings Goals | Not Started | |
@@ -49,18 +49,31 @@ Status values: `Not Started`, `In Progress`, `Done`, `Blocked` (note why).
       `(userId, date)` and `(userId, categoryId)`; 11 FKs
 - [x] Initial migration `20261018112439_init` applied to Neon (9 tables
       verified live)
-- [ ] `src/lib/prismaClient.js` — shared Prisma instance for services
+- [x] `src/lib/prismaClient.js` — shared Prisma instance, imported by services
+      only
+- [ ] `TEST_DATABASE_URL` set in `server/.env` — integration tests refuse to
+      run without it, so they cannot delete rows from the development
+      database. Do this before adding demo data
 - [ ] Seed script for demo data
-- [ ] `lib/errors.js` typed errors + `middleware/errorHandler.js`
 
 ### Auth
-- [ ] Register endpoint
-- [ ] Login endpoint + JWT issuance
-- [ ] Auth middleware
+- [x] Register endpoint — `POST /api/auth/register`, bcrypt at cost 12
+- [x] Login endpoint + JWT issuance — `POST /api/auth/login`, HS256, 1h TTL
+- [x] Auth middleware — `authMiddleware.js` verifies the bearer token and
+      loads the user via `authService.getUserById()` (no Prisma import, per
+      `architecture.md`)
+- [x] `GET /api/auth/me` behind `authMiddleware`
+- [x] `lib/errors.js` typed errors + `middleware/errorHandler.js`
+      (`{ error: { code, message } }`, Prisma + Zod errors mapped, never a
+      stack trace in any environment)
 - [ ] Frontend login/register pages (placeholder `/login` route exists so the
       shell's logout has somewhere to land; `authStore.js` is still a
       placeholder identity with a demo sign-in)
-- [ ] Tests: auth integration test
+- [x] Tests: auth integration test — register → login → `/me` against a real
+      database; plus 12 unit tests for `authService` with Prisma and bcrypt
+      mocked
+- [ ] Rate limiting on `/api/auth/*` (unbounded password guessing until this
+      lands)
 
 ### Layout / shell (design tokens + AppShell)
 - [x] Tailwind v4 token set, light + dark (`client/tailwind.config.js`,
@@ -176,6 +189,21 @@ Status values: `Not Started`, `In Progress`, `Done`, `Blocked` (note why).
 `architecture.md` / `database-schema.md`, with date and reason — e.g. a
 feature descoped, a different library used, a schema field renamed.)
 
+- 2026-10-18 — Integration tests **require** `TEST_DATABASE_URL` and throw
+  rather than falling back to `DATABASE_URL`. `conventions.md` suggests "a test
+  database (or a test schema in the same Postgres instance)"; the free Neon
+  tier gives one database, so a fallback would have meant the suite's
+  `deleteMany` ran against whatever data the dev database held. Scoping rows by
+  an email prefix is a convention, not a boundary — refusing to start is one.
+  Create the branch with `neon branches create --name dev --parent main`, or
+  the equivalent in the console.
+- 2026-10-18 — `authMiddleware` calls `authService.getUserById()` rather than
+  importing `prismaClient` directly. `architecture.md` says the Prisma client is
+  "imported by services only", and the middleware was the one file outside
+  `services/` reaching for it. Routing the lookup through the service keeps the
+  rule true without weakening it, rather than amending the rule to fit the
+  code. It also means a token for a deleted account stops working, since the
+  lookup returns null.
 - 2026-10-18 — Prisma pinned to **6.19.3**, not the latest 7.x/8.x. Prisma 7
   removed `url` and `directUrl` from the `datasource` block entirely (they move
   to `prisma.config.ts`, and the runtime URL moves into the `PrismaClient`
