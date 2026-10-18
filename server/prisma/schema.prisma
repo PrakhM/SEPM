@@ -1,0 +1,158 @@
+// FinTrack — Prisma schema
+// Target spec: ../../database-schema.md  (keep the two in sync)
+// Neon note:    ../conventions.md — pooled DATABASE_URL at runtime, DIRECT_URL for migrations.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // Neon pooled/PgBouncer — used by the app at runtime
+  directUrl = env("DIRECT_URL") // Neon direct — used only by `prisma migrate`
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  categories      Category[]
+  transactions    Transaction[]
+  budgets         Budget[]
+  savingsGoals    SavingsGoal[]
+  subscriptions   Subscription[]
+  financialRules  FinancialRule[]
+  idempotencyKeys IdempotencyKey[]
+  activities      Activity[]
+}
+
+model Category {
+  id     String  @id @default(uuid()) @db.Uuid
+  name   String
+  userId String? @db.Uuid // null = system default category
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+  budgets      Budget[]
+  ruleActions  FinancialRule[] @relation("RuleActionCategory")
+}
+
+model Transaction {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  categoryId    String?  @db.Uuid // null = "Uncategorized"
+  type          TxType
+  amount        Int // paise, never a float
+  description   String
+  paymentMethod String?
+  date          DateTime @db.Date // transaction date, distinct from createdAt
+  source        TxSource // how it was categorized
+  createdAt     DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([userId, categoryId])
+}
+
+model Budget {
+  id          String @id @default(uuid()) @db.Uuid
+  userId      String @db.Uuid
+  categoryId  String @db.Uuid
+  period      String // year-month, e.g. "2026-10"
+  limitAmount Int // paise
+  spent       Int    @default(0) // paise — atomic increment only, never read-modify-write
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId, period])
+}
+
+model SavingsGoal {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  name         String
+  targetAmount Int // paise
+  savedAmount  Int      @default(0) // paise
+  deadline     DateTime @db.Date
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// requiredMonthlyContribution is derived, not stored — see goalService.
+model Subscription {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @db.Uuid
+  name            String
+  amount          Int // paise
+  frequency       SubscriptionFrequency
+  nextRenewalDate DateTime     @db.Date
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FinancialRule {
+  id               String      @id @default(uuid()) @db.Uuid
+  userId           String      @db.Uuid
+  priority         Int // lower number = evaluated first
+  conditionType    RuleCondition
+  conditionValue   String // e.g. "Swiggy" or "10000" (paise, as string)
+  actionCategoryId String      @db.Uuid
+  isActive         Boolean     @default(true)
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actionCategory Category @relation("RuleActionCategory", fields: [actionCategoryId], references: [id], onDelete: Cascade)
+}
+
+model IdempotencyKey {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  key          String // client-generated UUID
+  responseBody Json     @db.JsonB // stored response to replay
+  statusCode   Int // stored status to replay
+  createdAt    DateTime @default(now()) // for expiry cleanup
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+}
+
+model Activity {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  action    String // e.g. "transaction.created", "budget.updated"
+  entityId  String   @db.Uuid // id of the affected row (not an FK)
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum TxType {
+  income
+  expense
+  transfer
+}
+
+enum TxSource {
+  manual
+  rule
+  ai
+}
+
+enum SubscriptionFrequency {
+  monthly
+  yearly
+}
+
+enum RuleCondition {
+  description_contains
+  amount_greater_than
+}
