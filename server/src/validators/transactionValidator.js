@@ -1,39 +1,16 @@
 import { z } from 'zod';
 
+import { isoDate, paise, uuid } from './commonValidator.js';
+
 /**
  * Request schemas for the transaction routes.
  *
  * Amounts are integers in paise (conventions.md "Money handling"): the client
- * sends 124900 for ₹1,249.00, never 1249.0. The schema rejects non-integers
- * rather than rounding, so a float can never reach the money column.
+ * sends 124900 for ₹1,249.00, never 1249.0. The shared `paise` schema rejects
+ * non-integers rather than rounding, so a float can never reach the money
+ * column. It lives in commonValidator.js because budgets validate limits with
+ * the same rule.
  */
-
-/**
- * Postgres INTEGER (int4) tops out at 2147483647 paise - about ₹2.1 crore,
- * far more than any personal entry. The bound is asserted here rather than
- * left to the database: an out-of-range value otherwise surfaces as a Prisma
- * error and a 500, when it is plainly a client input problem and should be a
- * 400 like every other validation failure.
- */
-const PAISE_MAX = 2147483647;
-
-const paise = z
-  .int('Amount must be an integer number of paise (e.g. 124900 for ₹1,249.00)')
-  .positive('Amount must be greater than zero')
-  .max(PAISE_MAX, 'Amount is too large');
-
-const uuid = z.uuid('Must be a valid UUID');
-
-const isoDate = z
-  .string()
-  .regex(
-    /^\d{4}-\d{2}-\d{2}$/,
-    'Date must be an ISO calendar date (YYYY-MM-DD)',
-  )
-  .refine(
-    (value) => !Number.isNaN(Date.parse(value)),
-    'Date must be a real calendar date',
-  );
 
 const baseFields = {
   amount: paise,

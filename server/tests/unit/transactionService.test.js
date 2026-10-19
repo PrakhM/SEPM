@@ -14,6 +14,13 @@ vi.mock('../../src/lib/prismaClient.js', () => ({
       create: vi.fn(),
       delete: vi.fn(),
     },
+    // The expense path looks up the matching budget by (user, category,
+    // period) before incrementing it. Unused by these tests, which all create
+    // uncategorised transactions.
+    budget: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));

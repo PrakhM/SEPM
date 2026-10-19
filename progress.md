@@ -18,8 +18,8 @@ Mid-sem scope = Increments 1–4 below, at minimum. Everything past that is
 | # | Increment | Status | Notes |
 |---|---|---|---|
 | 1 | Foundation (auth, skeleton, DB, deploy pipeline) | In Progress | Design tokens, AppShell layout route, `components/common/` primitive set, Prisma schema + migration, and the backend auth flow (register/login/me with tests) are done; frontend login, rate limiting, `TEST_DATABASE_URL` and deploy pipeline still open |
-| 2 | Transactions (CRUD, idempotency) | Not Started | |
-| 3 | Budgets (utilization, concurrency-safe update) | Not Started | |
+| 2 | Transactions (CRUD, idempotency) | Done | CRUD + idempotent creation over HTTP, integration tests passing. Budget increment is wired into create (see Budgets). Frontend has no edit/delete yet — the page only creates, lists, filters and deletes |
+| 3 | Budgets (utilization, concurrency-safe update) | In Progress | Service, routes, controller, validator and the atomic increment are done, and a transaction increments its budget inside the same `$transaction`. Utilization/threshold maths are pure and unit tested; CRUD + concurrency integration tests are written but unrun — they need `TEST_DATABASE_URL`. No frontend yet |
 | 4 | Savings Goals | Not Started | |
 | 5 | Dashboard | Not Started | |
 | 6 | Subscriptions | Not Started | |
@@ -112,19 +112,41 @@ Status values: `Not Started`, `In Progress`, `Done`, `Blocked` (note why).
       should get Vitest + Testing Library tests once the test setup lands
 
 ### Transactions
-- [ ] Prisma model
-- [ ] `transactionService.createTransaction` with idempotency check
-- [ ] CRUD routes/controllers
-- [ ] Frontend transaction list + form
-- [ ] Tests: idempotency test, CRUD integration test
+- [x] Prisma model
+- [x] `transactionService.createTransaction` with idempotency check
+- [x] CRUD routes/controllers
+- [x] Frontend transaction list + form
+- [x] Tests: idempotency test, CRUD integration test
+- [ ] Frontend edit and delete (the page deletes; editing is service-only so far)
 
 ### Budgets
-- [ ] Prisma model
-- [ ] `budgetService` atomic increment logic
-- [ ] Threshold alert logic
+- [x] Prisma model
+- [x] `budgetService` atomic increment logic — `applyTransactionToBudget(budgetId,
+      amount, client)`, a single `{ spent: { increment } }` statement, taking an
+      optional client so it can run inside a caller's `$transaction`
+- [x] Threshold alert logic — `evaluateThresholds(spent, limitAmount)` and
+      `calculateUtilization` are pure; 80% fires as `approaching`, 100% as
+      `exceeded`. A transaction only reports the thresholds *it* crossed, worked
+      out from `spent - amount` on the value the atomic update returned, so it
+      does not re-alert on every later expense
+- [x] CRUD routes/controllers/validator (`GET|POST /api/budgets`,
+      `GET|PATCH|DELETE /api/budgets/:id`); `spent` is not an editable field
+- [x] Unit tests: 36 in `tests/unit/budgetService.test.js`, including that the
+      increment never reads the budget first and never leaves the shared client
+      when a `$transaction` handle is passed
+- [ ] Tests: concurrency test (N parallel requests, assert `spent` == sum) is
+      written in `tests/integration/budgetConcurrency.test.js` — 10 trials of 10
+      simultaneous ₹100 expenses against one budget, each asserting
+      `spent === 100000`, plus a row-scoped CHECK constraint that forces the
+      budget update to fail and asserts the transaction row, the spend and the
+      idempotency key all roll back together. **Never executed**: no Docker or
+      local Postgres on this machine, and the Neon dev database is off limits
+      until a branch exists. Blocked on `TEST_DATABASE_URL`
 - [ ] Frontend budget view
-- [ ] Tests: concurrency test (parallel requests → correct total), unit test
-      for utilization calc
+- [ ] Editing or deleting a transaction does not yet move `Budget.spent` back.
+      Deleting an expense leaves the budget overstated, and updating its amount
+      leaves it at the old value. Both need the mirror-image atomic decrement
+      inside the same `$transaction`
 
 ### Savings Goals
 - [ ] Prisma model
@@ -188,6 +210,23 @@ Status values: `Not Started`, `In Progress`, `Done`, `Blocked` (note why).
 (List anything the team decided to change from `features.md` /
 `architecture.md` / `database-schema.md`, with date and reason — e.g. a
 feature descoped, a different library used, a schema field renamed.)
+
+- 2026-10-19 — The shared field schemas (`paise`, `uuid`, `isoDate`, and the new
+  `yearMonth`) moved out of `transactionValidator.js` into
+  `validators/commonValidator.js`. Budgets validate a limit against the same
+  integer-paise rule, and `conventions.md` does not let the money rules drift;
+  two copies of the int4 bound and its rationale is one too many.
+- 2026-10-19 — A budget is matched to a transaction by the **period of the
+  transaction's own `date`**, not by the current month, and a transaction whose
+  category has no budget for that period is simply not budgeted (creation still
+  returns 201). `database-schema.md` says "create transaction + update
+  budget.spent" but does not say which budget, and a missing budget is a setup
+  gap rather than a client error — failing the write would be the wrong
+  trade-off.
+- 2026-10-19 — Creating an expense may attach a `budgetAlert` to the transaction
+  response (and therefore to the stored idempotent body), reporting only the
+  thresholds *that transaction* crossed. Replays return it verbatim, so a retry
+  does not re-raise an alert the user already saw.
 
 - 2026-10-18 — Integration tests **require** `TEST_DATABASE_URL` and throw
   rather than falling back to `DATABASE_URL`. `conventions.md` suggests "a test
