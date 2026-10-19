@@ -8,10 +8,19 @@ import { z } from 'zod';
  * rather than rounding, so a float can never reach the money column.
  */
 
+/**
+ * Postgres INTEGER (int4) tops out at 2147483647 paise - about ₹2.1 crore,
+ * far more than any personal entry. The bound is asserted here rather than
+ * left to the database: an out-of-range value otherwise surfaces as a Prisma
+ * error and a 500, when it is plainly a client input problem and should be a
+ * 400 like every other validation failure.
+ */
+const PAISE_MAX = 2147483647;
+
 const paise = z
   .int('Amount must be an integer number of paise (e.g. 124900 for ₹1,249.00)')
   .positive('Amount must be greater than zero')
-  .safe();
+  .max(PAISE_MAX, 'Amount is too large');
 
 const uuid = z.uuid('Must be a valid UUID');
 
