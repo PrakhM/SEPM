@@ -93,6 +93,16 @@ cover what it was previewing.
 - Idempotency keys expire after 24 hours (cleanup job or lazy deletion on
   lookup — decide and document here once implemented).
 
+  **Decided (2026-10-18): lazy deletion on lookup.** A key older than 24h is
+  treated as unseen and deleted the next time it is looked up, rather than
+  running a scheduled cleanup. A background job would need a cron the free-tier
+  hosts cannot run — the same constraint that descoped recurring transactions
+  in `features.md`. The cost is that a key nobody retries again lingers; for
+  this app that is bounded by the number of transactions a user makes, and
+  the row is a few hundred bytes. If that ever matters, delete keys older than
+  24h opportunistically on each create, which costs one extra deleteMany and
+  needs no scheduler.
+
 ## Concurrency-safe budget updates
 
 - Never do `const budget = await getBudget(id); budget.spent += amount;
