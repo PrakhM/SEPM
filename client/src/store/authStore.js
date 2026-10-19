@@ -1,54 +1,76 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-/**
- * Session state for the shell.
- *
- * PLACEHOLDER — Increment 1 (auth) has not been built yet, so there is no
- * `/auth/me` endpoint to hydrate this from. The demo user below only exists so
- * the shell's user section renders something; replace `hydrate()` with a real
- * fetch once authService.js lands. Everything else in the app should read the
- * user from here rather than assuming auth works.
- */
-const PLACEHOLDER_USER = {
-  id: 'placeholder-user',
-  name: 'Demo User',
-  email: 'demo@fintrack.app',
-  avatarUrl: null,
-};
+import * as authService from '../services/authService.js';
+import { setAuthToken } from '../services/httpClient.js';
 
+/**
+ * Session state: the signed-in user and their API token.
+ *
+ * Both survive a reload (persisted to localStorage under `fintrack-session`),
+ * and every authenticated request carries the token through `setAuthToken`
+ * on the shared axios instance.
+ *
+ * The actions deliberately rethrow whatever authService throws - an ApiError
+ * carrying `message`, `status` and an optional field-level `details` map - so
+ * the form that started the request decides how to present the failure
+ * (inline field error, toast, or both). The store stays free of UI concerns.
+ */
 export const useAuthStore = create(
   persist(
     (set) => ({
-      user: PLACEHOLDER_USER,
-      isAuthenticated: true,
-
-      /** Swap the demo user for the real session response. */
-      setSession: (user, isAuthenticated = true) =>
-        set({ user, isAuthenticated }),
-
-      /** Temporary stand-in for the logout endpoint. */
-      logout: () => set({ user: null, isAuthenticated: false }),
+      user: null,
+      token: null,
+      isAuthenticated: false,
 
       /**
-       * Temporary stand-in for the login endpoint. Exists so the shell's
-       * logout button leads somewhere recoverable before auth is built -
-       * without it, logging out strands the placeholder on /login with no way
-       * back except a reload. Delete alongside the rest of this store's
-       * placeholder surface once authService.js lands.
+       * @throws {ApiError} 401 on bad credentials.
+       * @returns the signed-in user, for a welcome toast.
        */
-      signInAsDemoUser: () =>
-        set({ user: PLACEHOLDER_USER, isAuthenticated: true }),
+      login: async ({ email, password }) => {
+        const { user, token } = await authService.login({ email, password });
+        setAuthToken(token);
+        set({ user, token, isAuthenticated: true });
+        return user;
+      },
+
+      /**
+       * @throws {ApiError} 409 on a duplicate email, 400 with `details` on
+       *                    server-side validation failure.
+       */
+      register: async ({ name, email, password }) => {
+        const { user, token } = await authService.register({
+          name,
+          email,
+          password,
+        });
+        setAuthToken(token);
+        set({ user, token, isAuthenticated: true });
+        return user;
+      },
+
+      logout: () => {
+        setAuthToken(null);
+        set({ user: null, token: null, isAuthenticated: false });
+      },
     }),
     {
       name: 'fintrack-session',
-      // Persist only real sessions; the demo identity is never restored, so a
-      // reload always returns to a signed-in shell. A real session is issued
-      // by the server and must survive reloads via its own token.
-      partialize: (state) =>
-        state.isAuthenticated && state.user?.id !== PLACEHOLDER_USER.id
-          ? { user: state.user, isAuthenticated: true }
-          : {},
+      // `isAuthenticated` is only ever set in the same `set` as user and
+      // token, so it cannot drift from them; persisting the trio means a
+      // rehydrated session arrives internally consistent, with no second
+      // pass to reconcile the flag.
+      partialize: ({ user, token, isAuthenticated }) => ({
+        user,
+        token,
+        isAuthenticated,
+      }),
+      onRehydrateStorage: () => (state) => {
+        // The bearer-token header lives in module memory, which a reload
+        // wipes; reattach the persisted token so the very first request after
+        // a reload is still authenticated.
+        setAuthToken(state?.token ?? null);
+      },
     },
   ),
 );

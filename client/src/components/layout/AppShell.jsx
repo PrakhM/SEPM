@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 
 import { useAuthStore } from '../../store/authStore.js';
 import Sidebar from './Sidebar.jsx';
@@ -19,7 +19,6 @@ const DRAWER_WIDTH = 'w-72';
  */
 export default function AppShell() {
   const location = useLocation();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logout = useAuthStore((state) => state.logout);
 
   const [collapsed, setCollapsed] = useState(false);
@@ -63,9 +62,9 @@ export default function AppShell() {
   // or every page using usePageHeader() re-renders on each shell render.
   const headerContext = useMemo(() => ({ setAction }), []);
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  // Auth is not checked here - RequireAuth wraps this route in App.jsx, so
+  // the redirect to /login happens once, at the route level, and AppShell
+  // only ever renders for a signed-in user.
 
   return (
     <PageHeaderContext.Provider value={headerContext}>
