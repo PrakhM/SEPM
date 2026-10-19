@@ -2,6 +2,11 @@ import { Prisma } from '../generated/prisma/index.js';
 
 import prisma from '../lib/prismaClient.js';
 import { NotFoundError, ValidationError } from '../lib/errors.js';
+import {
+  applyTransactionToBudget,
+  evaluateThresholds,
+  periodForDate,
+} from './budgetService.js';
 
 /**
  * Transaction CRUD plus the idempotency pattern (conventions.md).
@@ -14,7 +19,7 @@ import { NotFoundError, ValidationError } from '../lib/errors.js';
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** Shape stored in IdempotencyKey.responseBody and replayed verbatim. */
-function storedResponse(transaction, category) {
+function storedResponse(transaction, category, budget) {
   return {
     id: transaction.id,
     userId: transaction.userId,
@@ -27,6 +32,9 @@ function storedResponse(transaction, category) {
     source: transaction.source,
     createdAt: transaction.createdAt,
     ...(category ? { category } : {}),
+    // Null unless this expense pushed a budget past a threshold, so the client
+    // can raise the alert without a second request. See budgetAlert below.
+    ...(budget ? { budgetAlert: budget } : {}),
   };
 }
 
@@ -37,12 +45,79 @@ function withCategory(transaction) {
 }
 
 /**
+ * Moves a matching budget's spend by the amount of one expense, inside the
+ * caller's transaction.
+ *
+ * The budget is looked up by (user, category, period) — the period comes from
+ * the transaction's own date, so an entry recorded for last month counts
+ * against last month's budget rather than this one's. A transaction with no
+ * category, or one whose category has no budget that period, is simply not
+ * budgeted: creation still succeeds, because a missing budget is a setup gap
+ * and not a client error.
+ *
+ * Returns the alert to hand back to the client, or null. "Only budget" is the
+ * decision this layer makes — architecture.md assigns budgetService the maths
+ * and the atomic increment, not the choice of which budget applies.
+ */
+async function applyBudgetForExpense(tx, created) {
+  const budget = await tx.budget.findUnique({
+    where: {
+      userId_categoryId_period: {
+        userId: created.userId,
+        categoryId: created.categoryId,
+        period: periodForDate(created.date),
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!budget) return null;
+
+  const updated = await applyTransactionToBudget(budget.id, created.amount, tx);
+
+  return budgetAlert(updated, created.amount);
+}
+
+/**
+ * The threshold the expense pushed a budget past, or null if it crossed none.
+ *
+ * `updated.spent` was returned by the same atomic statement that set it, so the
+ * pre-increment value is exactly `spent - amount` — no second read, and no
+ * window where another concurrent increment could make it a lie.
+ */
+function budgetAlert(updated, amount) {
+  if (!updated?.limitAmount) return null;
+
+  const before = evaluateThresholds(
+    updated.spent - amount,
+    updated.limitAmount,
+  );
+  const after = evaluateThresholds(updated.spent, updated.limitAmount);
+
+  const crossed = after.alerts.filter(
+    (alert) => !before.alerts.includes(alert),
+  );
+  if (crossed.length === 0) return null;
+
+  return {
+    budgetId: updated.id,
+    period: updated.period,
+    thresholdLevel: after.level,
+    alerts: crossed,
+    spent: updated.spent,
+    limitAmount: updated.limitAmount,
+    utilization: after.utilization,
+  };
+}
+
+/**
  * Creates a transaction, at most once per Idempotency-Key.
  *
  * Order of operations follows architecture.md:
  *   1. look up (userId, key) and replay a stored response if present
- *   2. create the row and store the key in ONE $transaction, so a crash
- *      between them cannot leave a key with no transaction or vice versa
+ *   2. create the row, move the budget's spend, and store the key in ONE
+ *      $transaction, so a crash between them cannot leave a key with no
+ *      transaction, a transaction with no budget update, or vice versa
  *
  * If two identical requests race, the unique constraint on (userId, key)
  * makes the second insert fail; that is caught and answered with the stored
@@ -86,7 +161,12 @@ export async function createTransaction(userId, data, idempotencyKey) {
         include: { category: { select: { id: true, name: true } } },
       });
 
-      const response = storedResponse(created, created.category);
+      const budgetAlert =
+        created.type === 'expense' && created.categoryId
+          ? await applyBudgetForExpense(tx, created)
+          : null;
+
+      const response = storedResponse(created, created.category, budgetAlert);
 
       await tx.idempotencyKey.create({
         data: {
